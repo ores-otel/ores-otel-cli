@@ -3,12 +3,15 @@
 pub const api_base = "ORES_OTEL_API_BASE"
 pub const api_base_default = "http://127.0.0.1:8080"
 
+pub const env_map_probe = "ENV_MAP_PROBE"
+
 pub const json = "ORES_OTEL_JSON"
 pub const json_default = "false"
 
 pub type CliEnv {
   CliEnv(
     api_base: String,
+    env_map_probe: String,
     json: Bool,
   )
 }
