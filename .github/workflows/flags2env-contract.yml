@@ -1,0 +1,138 @@
+name: flags2env contract
+
+on:
+  pull_request:
+    paths:
+      - '.cli-flags.toml'
+      - 'Cargo.toml'
+      - 'src/flags.rs'
+      - 'src/env_map.rs'
+      - '.github/workflows/flags2env-contract.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.cli-flags.toml'
+      - 'Cargo.toml'
+      - 'src/flags.rs'
+      - 'src/env_map.rs'
+      - '.github/workflows/flags2env-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flags2env-contract-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      FORWARD_FLAGS2ENV_REV: 333c2ace93c362d274171ab0e0edf613d96a8e59
+    steps:
+      - name: Check out exact ores-otel CLI candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ env.EXPECTED_HEAD }}
+          persist-credentials: false
+          path: ores-otel-cli
+
+      - name: Verify exact head and CLI authority
+        id: runtime
+        working-directory: ores-otel-cli
+        shell: python
+        run: |
+          import os
+          import re
+          import subprocess
+          import tomllib
+          from pathlib import Path
+
+          expected = os.environ['EXPECTED_HEAD']
+          actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          assert actual == expected, (actual, expected)
+
+          cargo = tomllib.loads(Path('Cargo.toml').read_text())
+          cli = tomllib.loads(Path('.cli-flags.toml').read_text())
+          dep = cargo['dependencies']['flags2env']
+          repository = dep['git'].removesuffix('.git').rstrip('/')
+          assert repository in {
+              'https://github.com/ORESoftware/flags-2-env',
+              'https://github.com/flags-2-env/flags-2-env',
+          }, repository
+          rev = dep['rev']
+          assert re.fullmatch(r'[0-9a-f]{40}', rev), rev
+
+          assert cli['parse']['allow_unknown'] is False
+          assert 'env-map-probe' not in cli.get('flags', {}), 'test-only probe leaked into public CLI contract'
+          canonical_types = {'array', 'bool', 'double', 'integer', 'json', 'map', 'string'}
+          for name, definition in cli.get('flags', {}).items():
+              assert 'long' not in definition, f'{name} uses legacy long'
+              assert 'switch' not in definition, f'{name} uses legacy switch'
+              assert definition.get('type', 'string') in canonical_types, (name, definition.get('type'))
+              aliases = definition.get('aliases')
+              assert isinstance(aliases, list) and name in aliases, (name, aliases)
+
+          repo_slug = repository.removeprefix('https://github.com/')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              print(f'rev={rev}', file=output)
+              print(f'repository={repo_slug}', file=output)
+
+      - name: Check out exact Cargo-pinned flags2env
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: ${{ steps.runtime.outputs.repository }}
+          ref: ${{ steps.runtime.outputs.rev }}
+          persist-credentials: false
+          path: flags2env-runtime
+
+      - name: Build and audit with exact runtime parser
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C flags2env-runtime all
+          flags2env-runtime/build/flags2env audit ores-otel-cli/.cli-flags.toml
+
+      - name: Check out reviewed forward parser
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: flags-2-env/flags-2-env
+          ref: ${{ env.FORWARD_FLAGS2ENV_REV }}
+          persist-credentials: false
+          path: flags2env-forward
+
+      - name: Build and audit with reviewed forward parser
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C flags2env-forward all
+          flags2env-forward/build/flags2env audit ores-otel-cli/.cli-flags.toml
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: stable
+          components: rustfmt,clippy
+
+      - name: Check Rust formatting
+        working-directory: ores-otel-cli
+        run: cargo fmt --all -- --check
+
+      - name: Run all Rust tests
+        working-directory: ores-otel-cli
+        run: cargo test --all-targets
+
+      - name: Run strict Clippy
+        working-directory: ores-otel-cli
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Prove validation did not mutate owned source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C ores-otel-cli diff --exit-code HEAD
+          git -C flags2env-runtime diff --exit-code HEAD -- . ':(exclude)build/**'
+          git -C flags2env-forward diff --exit-code HEAD -- . ':(exclude)build/**'

@@ -14,7 +14,7 @@ help = "API HTTP base URL."
 [flags.json]
 env = "ORES_OTEL_JSON"
 aliases = ["json"]
-type = "boolean"
+type = "bool"
 default = false
 help = "Emit JSON."
 
@@ -23,10 +23,3 @@ help = "Check API health."
 
 [commands.status]
 help = "Show service status."
-
-
-[flags.env-map-probe]
-env = "ENV_MAP_PROBE"
-long = "env-map-probe"
-type = "string"
-help = "Runtime environment key ENV_MAP_PROBE."
