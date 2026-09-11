@@ -117,14 +117,17 @@ jobs:
           toolchain: stable
           components: rustfmt,clippy
 
-      - name: Execute Rust format, tests, and strict Clippy
+      - name: Check Rust formatting
         working-directory: ores-otel-cli
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo fmt --all -- --check
-          cargo test --all-targets
-          cargo clippy --all-targets -- -D warnings
+        run: cargo fmt --all -- --check
+
+      - name: Run all Rust tests
+        working-directory: ores-otel-cli
+        run: cargo test --all-targets
+
+      - name: Run strict Clippy
+        working-directory: ores-otel-cli
+        run: cargo clippy --all-targets -- -D warnings
 
       - name: Prove validation did not mutate owned source
         shell: bash
