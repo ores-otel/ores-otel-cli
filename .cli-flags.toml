@@ -14,7 +14,7 @@ help = "API HTTP base URL."
 [flags.json]
 env = "ORES_OTEL_JSON"
 aliases = ["json"]
-type = "boolean"
+type = "bool"
 default = false
 help = "Emit JSON."
 
