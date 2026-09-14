@@ -3,7 +3,7 @@
 use std::io;
 
 use next_loggers::Logger;
-use ores_clis_core::{ColorRole, LogLevel, StreamEmitter, paint};
+use ores_clis_core::{paint, ColorRole, LogLevel, StreamEmitter};
 use serde_json::json;
 
 use crate::config::Config;
@@ -27,7 +27,11 @@ pub fn run(config: &Config, log: &Logger) -> Result<(), CliError> {
         let line = format!(
             "{} {}",
             paint(config.runtime.color_stdout(), ColorRole::Success, "ok"),
-            paint(config.runtime.color_stdout(), ColorRole::Info, &config.api_base)
+            paint(
+                config.runtime.color_stdout(),
+                ColorRole::Info,
+                &config.api_base
+            )
         );
         output
             .emit_line(&line)
