@@ -15,8 +15,20 @@ help = "API HTTP base URL."
 env = "ORES_OTEL_JSON"
 aliases = ["json"]
 type = "bool"
-default = false
-help = "Emit JSON."
+help = "Force JSON output; --no-json forces human output. If unset, stdout TTY selects human vs JSON automatically."
+
+[flags.color]
+env = "ORES_OTEL_COLOR"
+aliases = ["color"]
+type = "bool"
+help = "Force ANSI color; --no-color disables it. If unset, color follows the destination TTY and NO_COLOR/FORCE_COLOR conventions."
+
+[flags.log-level]
+env = "ORES_OTEL_LOG_LEVEL"
+aliases = ["log-level"]
+type = "string"
+default = "info"
+help = "Log threshold: silent, quiet, error, warn, info, debug, or trace."
 
 [commands.health]
 help = "Check API health."
