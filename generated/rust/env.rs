@@ -3,24 +3,32 @@
 
 pub const API_BASE: &str = "ORES_OTEL_API_BASE";
 pub const API_BASE_DEFAULT: &str = "http://127.0.0.1:8080";
+pub const COLOR: &str = "ORES_OTEL_COLOR";
 pub const ENV_MAP_PROBE: &str = "ENV_MAP_PROBE";
 pub const JSON: &str = "ORES_OTEL_JSON";
-pub const JSON_DEFAULT: &str = "false";
+pub const LOG_LEVEL: &str = "ORES_OTEL_LOG_LEVEL";
+pub const LOG_LEVEL_DEFAULT: &str = "info";
 
 /// Compile-time env key names from `.cli-flags.toml`.
 pub struct CliEnv {
     /// API HTTP base URL.
     pub api_base: &'static str,
+    /// Force ANSI color; absence means automatic policy.
+    pub color: &'static str,
     /// Runtime environment key ENV_MAP_PROBE.
     pub env_map_probe: &'static str,
-    /// Emit JSON.
+    /// Force JSON/human output; absence means automatic policy.
     pub json: &'static str,
+    /// Shared CLI log threshold.
+    pub log_level: &'static str,
 }
 
 impl CliEnv {
     pub const KEYS: Self = Self {
         api_base: API_BASE,
+        color: COLOR,
         env_map_probe: ENV_MAP_PROBE,
         json: JSON,
+        log_level: LOG_LEVEL,
     };
 }
