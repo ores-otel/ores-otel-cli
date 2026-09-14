@@ -3,7 +3,9 @@
 #[path = "../generated/rust/env.rs"]
 mod env;
 
-use ores_clis_core::{CliPolicy, ColorMode, EnvironmentHints, LogLevel, OutputMode, RuntimePolicy, TerminalState};
+use ores_clis_core::{
+    CliPolicy, ColorMode, EnvironmentHints, LogLevel, OutputMode, RuntimePolicy, TerminalState,
+};
 
 use crate::env_map::{truthy, value, EnvMap};
 use crate::error::CliError;
@@ -94,14 +96,16 @@ mod tests {
 
     #[test]
     fn output_defaults_to_human_on_tty() {
-        let config = Config::from_env_map_with_context(&EnvMap::new(), context(true, true)).unwrap();
+        let config =
+            Config::from_env_map_with_context(&EnvMap::new(), context(true, true)).unwrap();
         assert!(!config.json);
         assert!(config.runtime.color_stdout());
     }
 
     #[test]
     fn output_defaults_to_json_when_stdout_is_not_tty() {
-        let config = Config::from_env_map_with_context(&EnvMap::new(), context(false, false)).unwrap();
+        let config =
+            Config::from_env_map_with_context(&EnvMap::new(), context(false, false)).unwrap();
         assert!(config.json);
         assert!(!config.runtime.color_stdout());
     }
