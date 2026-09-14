@@ -19,14 +19,18 @@ use crate::error::CliError;
 /// `appName` stamped on every record.
 pub const APP_NAME: &str = "ores-otel-cli";
 
-/// Writes each record as a single JSON line to stderr.
+/// Writes each record as a single JSON line to stderr and flushes immediately.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct StderrJsonTransport;
 
 impl Transport for StderrJsonTransport {
     fn write(&self, record: &LogRecord) -> Result<(), LoggerError> {
         let line = record.to_json()?;
-        writeln!(std::io::stderr().lock(), "{line}").map_err(|error| LoggerError(error.to_string()))
+        let mut stderr = std::io::stderr().lock();
+        writeln!(stderr, "{line}").map_err(|error| LoggerError(error.to_string()))?;
+        stderr
+            .flush()
+            .map_err(|error| LoggerError(error.to_string()))
     }
 }
 
@@ -40,10 +44,11 @@ pub fn options(max_level: LogLevel) -> Options {
     }
 }
 
-/// The process logger. Success-path records are emitted at debug, so the default `Info` level
-/// leaves normal command output unchanged; failures are emitted at error.
+/// Process logger. Shared `ores-clis-core` policy performs the authoritative
+/// filtering; this backend is kept at Debug so permitted debug records are not
+/// filtered a second time by the telemetry implementation.
 pub fn logger() -> Logger {
-    Logger::new(options(LogLevel::Info).with_transport(Arc::new(StderrJsonTransport)))
+    Logger::new(options(LogLevel::Debug).with_transport(Arc::new(StderrJsonTransport)))
 }
 
 /// Stable, input-free label for a parsed command.
@@ -113,17 +118,27 @@ mod tests {
     }
 
     #[test]
-    fn debug_records_are_filtered_at_the_default_level() {
+    fn info_backend_filters_debug_but_runtime_backend_accepts_it() {
         const ROUTINE_ID: &str = "ores-routine-8HNe_nBVinzuvJT9XjRsh";
-        let transport = Arc::new(MemoryTransport::default());
-        let log = Logger::new(options(LogLevel::Info).with_transport(transport.clone()));
-        let sent = log
+        let filtered = Arc::new(MemoryTransport::default());
+        let info = Logger::new(options(LogLevel::Info).with_transport(filtered.clone()));
+        let sent = info
             .debug(vec![json!("filtered")])
             .add_trace("ores-trace-YoMKex_K4A9rydggenVTs", false)
             .add_routine_id(ROUTINE_ID)
             .send();
         assert!(matches!(sent, Ok(None)));
-        assert!(transport.records().is_empty());
+        assert!(filtered.records().is_empty());
+
+        let accepted = Arc::new(MemoryTransport::default());
+        let debug = Logger::new(options(LogLevel::Debug).with_transport(accepted.clone()));
+        let sent = debug
+            .debug(vec![json!("accepted")])
+            .add_trace("ores-trace-PxuTkVW-mr3qvASVHi9es", false)
+            .add_routine_id(ROUTINE_ID)
+            .send();
+        assert!(matches!(sent, Ok(Some(_))));
+        assert_eq!(accepted.records().len(), 1);
     }
 
     #[test]
