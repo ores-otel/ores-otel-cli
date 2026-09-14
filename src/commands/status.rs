@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 use next_loggers::Logger;
+use ores_clis_core::{ColorRole, LogLevel, paint};
 use serde_json::json;
 
 use crate::config::Config;
@@ -16,13 +17,19 @@ pub fn run(config: &Config, log: &Logger) -> Result<(), CliError> {
     if config.json {
         println!("{body}");
     } else {
-        println!("ores-otel @ {}", config.api_base);
+        println!(
+            "{} @ {}",
+            paint(config.runtime.color_stdout(), ColorRole::Emphasis, "ores-otel"),
+            paint(config.runtime.color_stdout(), ColorRole::Info, &config.api_base)
+        );
     }
-    let _ = log
-        .debug(vec![json!("status command completed")])
-        .add_fields(telemetry::output_fields(config.json))
-        .add_trace("ores-trace-cXvfa-aaHjP1Irt-Qfot8", false)
-        .add_routine_id(ROUTINE_ID)
-        .send();
+    if config.runtime.allows_log(LogLevel::Debug) {
+        let _ = log
+            .debug(vec![json!("status command completed")])
+            .add_fields(telemetry::output_fields(config.json))
+            .add_trace("ores-trace-cXvfa-aaHjP1Irt-Qfot8", false)
+            .add_routine_id(ROUTINE_ID)
+            .send();
+    }
     Ok(())
 }
