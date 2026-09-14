@@ -16,7 +16,7 @@ serde_json = "1"
 thiserror = "2"
 flags2env = { git = "https://github.com/ORESoftware/flags-2-env.git", rev = "377bff1a4e7424eb98377997a232ddc0fc700f59" }
 oresoftware-next-loggers = { git = "https://github.com/ores-otel/ores.otel.log.git", rev = "a5ec8812df692ccc3bdcaaf89d984c44714970d5" }
-ores-clis-core = { git = "https://github.com/ORESoftware/ores-clis-core.git", rev = "4b0ee80479bdec90d9edd86380f01beeaa4d40c8" }
+ores-clis-core = { git = "https://github.com/ORESoftware/ores-clis-core.git", rev = "999fbe6056307ef3b937afaf844eb0f33de5e21c" }
 
 [lints.rust]
 unsafe_code = "forbid"
