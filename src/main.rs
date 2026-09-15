@@ -2,9 +2,7 @@
 
 use std::io;
 
-use ores_clis_core::{
-    EmitDisposition, LogLevel, ProtocolEmitter, StreamRole, top_level_io,
-};
+use ores_clis_core::{top_level_io, EmitDisposition, LogLevel, ProtocolEmitter, StreamRole};
 use ores_otel_cli::{args, commands, config, error::CliError, flags, telemetry};
 use serde_json::json;
 
