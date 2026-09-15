@@ -36,7 +36,11 @@ pub fn parse_cli_flags(argv: &[String], config_path: &Path) -> Result<(Command, 
         "status" => Command::Status,
         other => return Err(CliError::Usage(format!("unknown command {other}"))),
     };
-    Ok((command, parsed.flags.into_iter().collect()))
+
+    // Only argv-derived values belong in this override map. The default-bearing
+    // `flags` map would otherwise overwrite the real process environment and
+    // make tri-state runtime policy (auto/explicit-on/explicit-off) impossible.
+    Ok((command, parsed.provided_flags.into_iter().collect()))
 }
 
 pub fn apply_cli_flags() -> Result<(Command, EnvMap), CliError> {
@@ -77,6 +81,17 @@ mod tests {
         assert_eq!(command, Command::Health);
         assert_eq!(value(&env, "ENV_MAP_PROBE"), Some("keep"));
         assert_eq!(std::env::var_os("ENV_MAP_PROBE"), before);
+    }
+
+    #[test]
+    fn ambient_values_are_not_shadowed_by_flag_defaults() {
+        let (_, env) = apply_cli_flags_from(
+            vec!["cli".into(), "health".into()],
+            EnvMap::from([("ORES_OTEL_JSON".into(), "true".into())]),
+            &config_path(),
+        )
+        .expect("valid flags");
+        assert_eq!(value(&env, "ORES_OTEL_JSON"), Some("true"));
     }
 
     #[test]
