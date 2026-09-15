@@ -1,14 +1,19 @@
 #![forbid(unsafe_code)]
 
-use ores_clis_core::LogLevel;
+use std::io;
+
+use ores_clis_core::{
+    EmitDisposition, LogLevel, ProtocolEmitter, StreamRole, top_level_io,
+};
 use ores_otel_cli::{args, commands, config, error::CliError, flags, telemetry};
 use serde_json::json;
 
 fn main() {
     if let Err(err) = run() {
-        // Primary error output is not a diagnostic log record and therefore is
-        // never hidden by --log-level=silent/quiet.
-        eprintln!("{err}");
+        // Primary command failure reporting remains non-suppressible for
+        // compatibility, but it still owns the diagnostics/stderr stream and
+        // receives the shared BrokenPipe classification.
+        emit_top_level_error(&err);
         std::process::exit(err.exit_code());
     }
 }
@@ -23,7 +28,7 @@ fn run() -> Result<(), CliError> {
         .skip(1)
         .any(|argument| matches!(argument.as_str(), "-h" | "--help" | "help"))
     {
-        print!("{}", args::help_text());
+        emit_help(args::help_text())?;
         return Ok(());
     }
 
@@ -57,4 +62,20 @@ fn run() -> Result<(), CliError> {
             Err(err)
         }
     }
+}
+
+fn emit_help(value: &str) -> Result<(), CliError> {
+    let stdout = io::stdout();
+    let mut emitter = ProtocolEmitter::new(stdout.lock(), StreamRole::Primary);
+    match top_level_io(emitter.emit_primary_human_line(value.trim_end_matches('\n')))
+        .map_err(|error| CliError::Command(format!("could not write help output: {error}")))?
+    {
+        EmitDisposition::Written | EmitDisposition::ConsumerClosed => Ok(()),
+    }
+}
+
+fn emit_top_level_error(error: &CliError) {
+    let stderr = io::stderr();
+    let mut emitter = ProtocolEmitter::new(stderr.lock(), StreamRole::Diagnostics);
+    let _ = top_level_io(emitter.emit_diagnostic_line(&error.to_string()));
 }
