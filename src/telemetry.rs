@@ -143,7 +143,7 @@ mod tests {
 
     #[test]
     fn error_records_carry_trace_and_routine_ids_and_outcome_fields() {
-        const ROUTINE_ID: &str = "ores-routine-8HNe_nBVinzuvJT9XjRsh";
+        const ROUTINE_ID: &str = "ores-routine-mgGRCJaXVdLx3i3V7EQ0Q";
         let transport = Arc::new(MemoryTransport::default());
         let log = Logger::new(options(LogLevel::Info).with_transport(transport.clone()));
         let sent = log
