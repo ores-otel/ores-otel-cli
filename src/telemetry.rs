@@ -220,11 +220,19 @@ mod tests {
                 // A trace ID belongs to exactly one call site; a routine ID to
                 // exactly one routine. Only the declaring form of each counts,
                 // so an assertion that repeats an ID is not a second use.
-                if let Some(id) = declared_marker(line, ".add_trace(\"", TRACE_PREFIX) {
-                    trace_sites.entry(id).or_default().push(where_.clone());
+                // Both spellings of the trace call, and every occurrence on
+                // the line: a chained `.add_trace(..).add_trace(..)` is two
+                // call sites, not one.
+                for opener in [".add_trace(\"", ".add_trace_id(\""] {
+                    for id in declared_markers(line, opener, TRACE_PREFIX) {
+                        trace_sites.entry(id).or_default().push(where_.clone());
+                    }
                 }
-                if let Some(id) = declared_marker(line, "&str = \"", ROUTINE_PREFIX) {
-                    routine_declarations.entry(id).or_default().push(where_);
+                // `const X: &str`, `&'static str`, and the `pub` forms of each.
+                for opener in ["&str = \"", "&'static str = \""] {
+                    for id in declared_markers(line, opener, ROUTINE_PREFIX) {
+                        routine_declarations.entry(id).or_default().push(where_.clone());
+                    }
                 }
             }
         }
@@ -259,6 +267,56 @@ mod tests {
         );
     }
 
+    /// The scanner above only fails when its own matchers see the marker, so
+    /// pin the shapes it must see. Each of these was a blind spot: the second
+    /// call chained onto one line, the `add_trace_id` spelling, and the
+    /// `&'static str` declaration.
+    #[test]
+    fn the_scanner_sees_every_declaring_shape() {
+        const TRACE_PREFIX: &str = concat!("ores", "-trace-");
+        const ROUTINE_PREFIX: &str = concat!("ores", "-routine-");
+        let a = format!("{TRACE_PREFIX}aaaaaaaaaaaaaaaaaaaaa");
+        let b = format!("{TRACE_PREFIX}bbbbbbbbbbbbbbbbbbbbb");
+
+        // Two call sites chained onto one line are two, not one.
+        let line = format!("log.info(\"x\").add_trace(\"{a}\", false).add_trace(\"{b}\", false);");
+        assert_eq!(
+            declared_markers(&line, ".add_trace(\"", TRACE_PREFIX),
+            vec![a.clone(), b.clone()]
+        );
+
+        // The `add_trace_id` spelling counts too.
+        let line = format!("log.info(\"x\").add_trace_id(\"{a}\");");
+        assert_eq!(
+            declared_markers(&line, ".add_trace_id(\"", TRACE_PREFIX),
+            vec![a.clone()]
+        );
+
+        // Both routine declaration spellings, with and without `pub`.
+        let id = format!("{ROUTINE_PREFIX}ccccccccccccccccccccc");
+        for line in [
+            format!("    const ROUTINE_ID: &str = \"{id}\";"),
+            format!("pub const ROUTINE_ID: &str = \"{id}\";"),
+        ] {
+            assert_eq!(declared_markers(&line, "&str = \"", ROUTINE_PREFIX), vec![id.clone()]);
+        }
+        let line = format!("static ROUTINE_ID: &'static str = \"{id}\";");
+        assert_eq!(
+            declared_markers(&line, "&'static str = \"", ROUTINE_PREFIX),
+            vec![id.clone()]
+        );
+
+        // An assertion that repeats an id is not a second declaration.
+        let line = format!("        assert_eq!(record.trace_id, Some(\"{a}\"));");
+        assert!(declared_markers(&line, ".add_trace(\"", TRACE_PREFIX).is_empty());
+
+        // And the length check still sees a marker in any of these.
+        assert_eq!(
+            markers(&format!("emit!(\"{TRACE_PREFIX}short\")"), TRACE_PREFIX),
+            vec!["short".to_owned()]
+        );
+    }
+
     /// Every marker suffix on `line`: the run of nanoid characters that follows
     /// each occurrence of `prefix`.
     fn markers(line: &str, prefix: &str) -> Vec<String> {
@@ -277,12 +335,25 @@ mod tests {
         found
     }
 
-    /// The marker declared by `line` when it is a declaring form: `opener` is
-    /// the text that immediately precedes the opening quote of the literal.
-    fn declared_marker(line: &str, opener: &str, prefix: &str) -> Option<String> {
-        let after = line.split_once(opener)?.1;
-        let literal = after.split_once('"')?.0;
-        literal.starts_with(prefix).then(|| literal.to_owned())
+    /// Every marker declared by `line` in a declaring form: `opener` is the
+    /// text that immediately precedes the opening quote of the literal.
+    ///
+    /// All occurrences, not just the first -- `split_once` stopped after one,
+    /// so a second call site chained onto the same line was invisible to the
+    /// uniqueness check.
+    fn declared_markers(line: &str, opener: &str, prefix: &str) -> Vec<String> {
+        let mut found = Vec::new();
+        let mut rest = line;
+        while let Some((_, after)) = rest.split_once(opener) {
+            let Some((literal, remainder)) = after.split_once('"') else {
+                break;
+            };
+            if literal.starts_with(prefix) {
+                found.push(literal.to_owned());
+            }
+            rest = remainder;
+        }
+        found
     }
 
     /// Every `.rs` file under `directory`, as `(display path, contents)`.
