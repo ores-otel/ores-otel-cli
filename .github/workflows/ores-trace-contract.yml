@@ -1,16 +1,32 @@
+# Static ORES trace-marker contract.
+#
+# Asserts the full id shape `^ores-(trace|routine)-[A-Za-z0-9_-]{21}$`, the
+# authored peer `OresTraceId`/`OresRoutineId` in ORESoftware/ores-interfaces
+# `contracts/rpc-operation/v1`. The first-generation guard only checked the
+# loose `{12,64}`, which accepted truncated and hand-written ids.
 name: ORES trace marker contract
-on: [pull_request]
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   ores-trace-contract:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: {node-version: 22}
-      - shell: bash
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # The checker is a single dependency-free Rust file, so it needs no
+      # toolchain beyond the rustc already on the runner and never touches
+      # this repo's own build or target directory.
+      - name: Build the contract checker
+        run: rustc -O -o "$RUNNER_TEMP/ores-trace-contract" .github/ores-trace-contract.rs
+
+      - name: Verify static ORES trace markers
         run: |
-          node <<'NODE'
-          const fs=require('fs'),cp=require('child_process'),p=require('path'),ext=new Set(['.js','.jsx','.ts','.tsx','.mjs','.cjs']),bad=[];
-          for(const f of cp.execFileSync('git',['ls-files'],{encoding:'utf8'}).trim().split(/\r?\n/).filter(f=>f&&ext.has(p.extname(f))&&!/(^|\/)(node_modules|dist|build|coverage|vendor|generated)(\/|$)/.test(f))){fs.readFileSync(f,'utf8').split(/\r?\n/).forEach((l,i)=>{if(l.includes('dd-trace-'))bad.push(`${f}:${i+1}: use ores-trace-*`);const m=l.match(/\.(addTrace(?:Id)?)\(\s*(['"`])([^'"`]+)\2/);if(m&&!/^ores-trace-[A-Za-z0-9_-]{12,64}$/.test(m[3]))bad.push(`${f}:${i+1}: ${m[1]} literal must use ores-trace-*`);if(/\b(?:const|let|var)\s+\w*trace\w*\s*=\s*(['"`])ores-trace-[^'"`]+\1/i.test(l))bad.push(`${f}:${i+1}: keep static ores-trace-* inline`);const r=l.match(/\bconst\s+routineId\s*=\s*(['"`])([^'"`]+)\1/);if(r&&!/^ores-routine-[A-Za-z0-9_-]{12,64}$/.test(r[2]))bad.push(`${f}:${i+1}: routineId must use ores-routine-*`);});}
-          if(bad.length){console.error(bad.join('\n'));process.exit(1)}
-          NODE
+          "$RUNNER_TEMP/ores-trace-contract" .
