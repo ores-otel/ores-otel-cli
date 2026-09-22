@@ -8,7 +8,8 @@
 .env.*
 !.env.example
 *.sqlite
-Cargo.lock
+
+# CLI application: Cargo.lock is tracked for reproducible exact-head builds.
 
 # Repository-local temporary data and authorized Git worktrees
 tmp
