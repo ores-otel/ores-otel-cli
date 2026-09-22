@@ -1,0 +1,47 @@
+name: bootstrap-cargo-lock-once
+
+on:
+  push:
+    branches:
+      - fix/unique-test-routine-id-post-trace-guard
+    paths:
+      - 'Cargo.toml'
+      - '.gitignore'
+      - '.github/workflows/bootstrap-cargo-lock.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/unique-test-routine-id-post-trace-guard
+          persist-credentials: true
+
+      - name: Install pinned Rust 1.88
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+        with:
+          toolchain: 1.88.0
+          components: rustfmt, clippy
+
+      - name: Generate, verify, commit lock, and remove bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e Cargo.lock
+          cargo generate-lockfile
+          cargo fmt --all -- --check
+          cargo test --locked --all-targets
+          cargo clippy --locked --all-targets -- -D warnings
+          git add Cargo.lock
+          git rm .github/workflows/bootstrap-cargo-lock.yml
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'build: commit reproducible CLI dependency lock'
+          git push origin HEAD:fix/unique-test-routine-id-post-trace-guard
