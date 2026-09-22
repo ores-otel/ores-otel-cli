@@ -1,0 +1,58 @@
+name: Cargo lock reproducibility
+
+on:
+  pull_request:
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.gitignore'
+      - '.github/workflows/cargo-lock.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.gitignore'
+      - '.github/workflows/cargo-lock.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  locked:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Verify tracked application lock
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          git diff --check
+          git ls-files --error-unmatch Cargo.lock >/dev/null
+          test -f Cargo.lock
+          if git check-ignore -q Cargo.lock; then
+            echo 'Cargo.lock must not be ignored in this CLI application' >&2
+            exit 1
+          fi
+
+      - name: Install pinned Rust 1.88
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+        with:
+          toolchain: 1.88.0
+
+      - name: Verify exact locked dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo metadata --locked --no-deps --format-version 1 >/dev/null
+          cargo check --locked --all-targets
+          git diff --exit-code -- Cargo.toml Cargo.lock
