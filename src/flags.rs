@@ -114,10 +114,16 @@ mod tests {
     #[test]
     fn unknown_cli_flag_diagnostics_never_echo_credentials() {
         let result = parse_cli_flags(
-            &["cli".into(), "health".into(), "--bearer-token=super-secret".into()],
+            &[
+                "cli".into(),
+                "health".into(),
+                "--bearer-token=super-secret".into(),
+            ],
             &config_path(),
         );
-        let error = result.expect_err("unknown flag must be rejected").to_string();
+        let error = result
+            .expect_err("unknown flag must be rejected")
+            .to_string();
         assert!(!error.contains("super-secret"));
     }
 
