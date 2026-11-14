@@ -75,7 +75,9 @@ mod tests {
             vec!["token=secret-value".to_owned()],
             vec!["health".to_owned(), "--token=secret-value".to_owned()],
         ] {
-            let error = parse(argv).expect_err("unrecognized argument must fail").to_string();
+            let error = parse(argv)
+                .expect_err("unrecognized argument must fail")
+                .to_string();
             assert!(!error.contains("secret-value"));
         }
     }
