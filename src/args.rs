@@ -39,7 +39,7 @@ where
                 items.next();
             }
             other if !other.starts_with('-') => {
-                return Err(CliError::Usage(format!("unknown command {other}")));
+                return Err(CliError::Usage("unknown command".into()));
             }
             _ => {}
         }
@@ -51,7 +51,7 @@ where
             flag if flag.starts_with("--api-base=") => {
                 api_base = Some(flag.trim_start_matches("--api-base=").to_string());
             }
-            other => return Err(CliError::Usage(format!("unknown flag {other}"))),
+            _ => return Err(CliError::Usage("unknown flag".into())),
         }
     }
     Ok(Invocation {
@@ -63,4 +63,22 @@ where
 
 pub fn help_text() -> &'static str {
     "ores-otel — ores-otel CLI\n\nCommands:\n  health\n  status\n"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fallback_argument_parser_never_repeats_untrusted_input() {
+        for argv in [
+            vec!["token=secret-value".to_owned()],
+            vec!["health".to_owned(), "--token=secret-value".to_owned()],
+        ] {
+            let error = parse(argv)
+                .expect_err("unrecognized argument must fail")
+                .to_string();
+            assert!(!error.contains("secret-value"));
+        }
+    }
 }
