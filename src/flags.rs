@@ -15,26 +15,27 @@ pub fn parse_cli_flags(argv: &[String], config_path: &Path) -> Result<(Command, 
     parser.audit_config(Some(config_path)).map_err(|error| {
         CliError::Config(format!("flags-2-env configuration audit failed: {error}"))
     })?;
+    // Parser diagnostics may embed raw argv values (including credentials).
     let parsed = parser
         .parse_structured(argv, Some(config_path))
-        .map_err(|error| CliError::Config(format!("flags-2-env parse failed: {error}")))?;
+        .map_err(|_| CliError::Config("flags-2-env parse failed".into()))?;
     if !parsed.unknown_options.is_empty() {
         return Err(CliError::Usage(format!(
-            "unknown command-line option(s): {}",
-            parsed.unknown_options.join(", ")
+            "{} unknown command-line option(s)",
+            parsed.unknown_options.len()
         )));
     }
     if !parsed.errors.is_empty() {
         return Err(CliError::Usage(format!(
-            "invalid command-line value(s): {}",
-            parsed.errors.join("; ")
+            "{} invalid command-line value(s)",
+            parsed.errors.len()
         )));
     }
     let command = match parsed.command.as_str() {
         "" | "help" => Command::Help,
         "health" => Command::Health,
         "status" => Command::Status,
-        other => return Err(CliError::Usage(format!("unknown command {other}"))),
+        _ => return Err(CliError::Usage("unknown command".into())),
     };
 
     // Only argv-derived values belong in this override map. The default-bearing
@@ -108,6 +109,16 @@ mod tests {
         )
         .is_err());
         assert_eq!(std::env::var_os("ENV_MAP_PROBE"), before);
+    }
+
+    #[test]
+    fn unknown_cli_flag_diagnostics_never_echo_credentials() {
+        let result = parse_cli_flags(
+            &["cli".into(), "health".into(), "--bearer-token=super-secret".into()],
+            &config_path(),
+        );
+        let error = result.expect_err("unknown flag must be rejected").to_string();
+        assert!(!error.contains("super-secret"));
     }
 
     #[test]
